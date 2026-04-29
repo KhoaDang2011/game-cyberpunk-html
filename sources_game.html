@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>⚡ CYBER TANK 2088 ⚡ - Bắn ghi điểm phong cách Cyberpunk</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            min-height: 100vh;
+            background: radial-gradient(circle at 20% 30%, #0a0f1e, #03060c);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* hiệu ứng grid cyberpunk nền */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(#0ff1 1px, transparent 1px),
+                linear-gradient(90deg, #0ff1 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.25;
+            animation: gridPulse 4s infinite alternate;
+        }
+
+        @keyframes gridPulse {
+            0% { opacity: 0.15; }
+            100% { opacity: 0.4; }
+        }
+
+        .game-container {
+            position: relative;
+            z-index: 10;
+            border-radius: 32px;
+            box-shadow: 0 0 30px #0ff3, 0 0 10px #f0f3;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(3px);
+            padding: 12px;
+            border: 1px solid #0ff;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 20px;
+            box-shadow: 0 0 20px #00ffff88, inset 0 0 10px #0ff2;
+            cursor: crosshair;
+            background-color: #010514;
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-top: 18px;
+            margin-bottom: 10px;
+            padding: 8px 25px;
+            background: #0a0f1ccc;
+            border-radius: 60px;
+            backdrop-filter: blur(8px);
+            border: 1px solid #0ff;
+            box-shadow: 0 0 12px #0ff3;
+        }
+
+        .score-box, .tips {
+            font-family: 'Orbitron', monospace;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .score-box {
+            font-size: 32px;
+            color: #0ff;
+            text-shadow: 0 0 8px #0ff, 0 0 2px #fff;
+            background: #000000aa;
+            padding: 5px 18px;
+            border-radius: 40px;
+            backdrop-filter: blur(4px);
+        }
+
+        .score-box span {
+            color: #f0f;
+            font-size: 36px;
+            text-shadow: 0 0 8px #f0f;
+        }
+
+        .tips {
+            font-size: 14px;
+            color: #8cf;
+            background: #00000099;
+            padding: 5px 15px;
+            border-radius: 40px;
+            display: flex;
+            gap: 20px;
+        }
+
+        .tips kbd {
+            background: #111;
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-weight: bold;
+            color: #0ff;
+            border: 1px solid #0ff;
+            margin: 0 4px;
+            font-family: monospace;
+        }
+
+        button {
+            background: none;
+            border: none;
+            color: #0ff;
+            font-family: monospace;
+            font-weight: bold;
+            background: #111c;
+            padding: 6px 14px;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 16px;
+            border: 1px solid #0ff;
+        }
+
+        button:hover {
+            background: #0ff3;
+            box-shadow: 0 0 10px #0ff;
+            color: white;
+            transform: scale(0.96);
+        }
+
+        @media (max-width: 1100px) {
+            .tips { font-size: 10px; gap: 8px; }
+            .score-box { font-size: 24px; }
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="1100" height="650"></canvas>
+        <div class="hud">
+            <div class="score-box">🔹 ĐIỂM: <span id="scoreValue">0</span></div>
+            <div class="tips">
+                <span>🕹️ <kbd>◀</kbd> <kbd>▶</kbd> hoặc <kbd>A</kbd> <kbd>D</kbd></span>
+                <span>💥 BẮN: <kbd>␣</kbd> hoặc <kbd>🖱️ CLICK</kbd></span>
+                <span>🔄 RESET: <kbd>R</kbd></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ----- CANVAS -----
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // ----- KÍCH THƯỚC CANVAS -----
+        const CW = 1100;
+        const CH = 650;
+        canvas.width = CW;
+        canvas.height = CH;
+
+        // ----- THAM SỐ GAME -----
+        let gameActive = true;
+        let score = 0;
+        
+        // ----- XE TĂNG (PLAYER) -----
+        const TANK_WIDTH = 48;
+        const TANK_HEIGHT = 44;
+        let tank = {
+            x: CW/2,
+            y: CH - 70,
+            width: TANK_WIDTH,
+            height: TANK_HEIGHT
+        };
+        
+        // giới hạn di chuyển
+        const TANK_SPEED = 6.8;
+        const MIN_X = 25 + TANK_WIDTH/2;
+        const MAX_X = CW - 25 - TANK_WIDTH/2;
+        
+        // ----- ĐẠN -----
+        let bullets = [];
+        const BULLET_RADIUS = 5;
+        const BULLET_SPEED = -7.5;  // bay lên
+        let shootCooldown = 0;
+        const SHOOT_DELAY_FRAMES = 12;  // ~ 0.2s (60fps)
+        
+        // ----- KẺ ĐỊCH (DRONE CYBER) -----
+        let enemies = [];
+        const BASE_ENEMY_RADIUS = 14;
+        let spawnCounter = 0;
+        let spawnDelay = 38;    // frame giữa các lần spawn (giảm dần theo điểm)
+        
+        // ----- HIỆU ỨNG NỔ (đơn giản cho vui cyber) -----
+        let explosions = [];
+        
+        // ----- CONTROL FLAGS -----
+        const keys = {
+            ArrowLeft: false,
+            ArrowRight: false,
+            KeyA: false,
+            KeyD: false
+        };
+        
+        // ----- HÀM CẬP NHẬT ĐIỂM HIỂN THỊ -----
+        function updateScoreUI() {
+            document.getElementById('scoreValue').innerText = score;
+        }
+        
+        // ----- RESET TOÀN BỘ GAME -----
+        function resetGame() {
+            gameActive = true;
+            score = 0;
+            updateScoreUI();
+            bullets = [];
+            enemies = [];
+            explosions = [];
+            tank.x = CW/2;
+            shootCooldown = 0;
+            spawnCounter = 0;
+            spawnDelay = 38;   // reset tốc độ sinh
+            
+            // đảm bảo tank nằm trong biên
+            clampTankPosition();
+        }
+        
+        // giới hạn vị trí tank
+        function clampTankPosition() {
+            if(tank.x < MIN_X) tank.x = MIN_X;
+            if(tank.x > MAX_X) tank.x = MAX_X;
+        }
+        
+        // ----- BẮN ĐẠN -----
+        function shootBullet() {
+            if(!gameActive) return false;
+            if(shootCooldown > 0) return false;
+            // tạo đạn từ nòng xe tăng (phía trên thân)
+            bullets.push({
+                x: tank.x,
+                y: tank.y - TANK_HEIGHT/2 - 6,
+                radius: BULLET_RADIUS,
+                speedY: BULLET_SPEED
+            });
+            shootCooldown = SHOOT_DELAY_FRAMES;
+            // hiệu ứng âm thanh ảo (không cần file, rung nhẹ console)
+            return true;
+        }
+        
+        // ----- SINH KẺ ĐỊCH (Drone đỏ) -----
+        function spawnEnemy() {
+            if(!gameActive) return;
+            // giới hạn số lượng kẻ địch tối đa 25 để tránh lag
+            if(enemies.length > 28) return;
+            let randX = Math.random() * (CW - 2 * BASE_ENEMY_RADIUS - 40) + BASE_ENEMY_RADIUS + 20;
+            // tốc độ tăng dần theo điểm, càng về sau càng khó
+            let speedBonus = Math.min(3.5, Math.floor(score / 280));
+            let enemySpeed = 2.2 + speedBonus + (Math.random() * 0.9);
+            enemies.push({
+                x: randX,
+                y: -BASE_ENEMY_RADIUS,
+                radius: BASE_ENEMY_RADIUS,
+                speedY: enemySpeed,
+                hp: 1,
+                color: `hsl(${Math.floor(Math.random() * 20 + 340)}, 85%, 58%)` // đỏ - cam neon
+            });
+        }
+        
+        // ----- CẬP NHẬT VẬT LÝ -----
+        function updateGame() {
+            if(!gameActive) return;
+            
+            // 1. Di chuyển xe tăng (chỉ khi active)
+            let move = 0;
+            if(keys.ArrowLeft || keys.KeyA) move = -1;
+            if(keys.ArrowRight || keys.KeyD) move = 1;
+            if(move !== 0) {
+                tank.x += move * TANK_SPEED;
+                clampTankPosition();
+            }
+            
+            // 2. Cooldown bắn
+            if(shootCooldown > 0) shootCooldown--;
+            
+            // 3. Cập nhật đạn
+            for(let i=0; i<bullets.length; i++) {
+                bullets[i].y += bullets[i].speedY;
+                // xóa đạn ra khỏi màn hình (trên cùng)
+                if(bullets[i].y + bullets[i].radius < 0 || bullets[i].y - bullets[i].radius > CH) {
+                    bullets.splice(i,1);
+                    i--;
+                }
+            }
+            
+            // 4. Cập nhật enemy + va chạm tank
+            for(let i=0; i<enemies.length; i++) {
+                const e = enemies[i];
+                e.y += e.speedY;
+                
+                // kiểm tra va chạm với XE TĂNG (hình chữ nhật vs hình tròn)
+                if(checkCollisionTankEnemy(tank, e)) {
+                    gameActive = false;  // game over
+                    // tạo hiệu ứng nổ lớn
+                    addExplosion(tank.x, tank.y, 28);
+                    return;
+                }
+                
+                // xóa enemy nếu ra khỏi màn hình dưới
+                if(e.y + e.radius > CH + 60 || e.y + e.radius < -60) {
+                    enemies.splice(i,1);
+                    i--;
+                }
+            }
+            
+            // 5. Va chạm ĐẠN vs ENEMY (ghi điểm)
+            for(let i=0; i<bullets.length; i++) {
+                const bullet = bullets[i];
+                let hitIndex = -1;
+                for(let j=0; j<enemies.length; j++) {
+                    const enemy = enemies[j];
+                    const dx = bullet.x - enemy.x;
+                    const dy = bullet.y - enemy.y;
+                    const dist = Math.hypot(dx, dy);
+                    if(dist < bullet.radius + enemy.radius) {
+                        hitIndex = j;
+                        break;
+                    }
+                }
+                if(hitIndex !== -1) {
+                    // trúng kẻ địch
+                    const enemyDead = enemies[hitIndex];
+                    // tạo hiệu ứng nổ cyber
+                    addExplosion(enemyDead.x, enemyDead.y, 16);
+                    enemies.splice(hitIndex,1);
+                    bullets.splice(i,1);
+                    score += 10;
+                    updateScoreUI();
+                    i--; // sau khi xóa đạn, lùi index
+                    
+                    // tăng độ khó: giảm thời gian spawn theo điểm (càng cao spawn càng nhanh)
+                    let newDelay = 42 - Math.floor(score / 240);
+                    if(newDelay < 20) newDelay = 20;
+                    spawnDelay = newDelay;
+                }
+            }
+            
+            // 6. Spawn enemy động theo frame
+            if(spawnCounter <= 0 && gameActive) {
+                spawnEnemy();
+                spawnCounter = spawnDelay;
+            } else {
+                if(spawnCounter > 0) spawnCounter--;
+            }
+            
+            // 7. cập nhật hiệu ứng nổ (giảm dần)
+            for(let i=0; i<explosions.length; i++) {
+                explosions[i].life--;
+                if(explosions[i].life <= 0) {
+                    explosions.splice(i,1);
+                    i--;
+                }
+            }
+        }
+        
+        // KIỂM TRA VA CHẠM HÌNH CHỮ NHẬT (TANK) VÀ HÌNH TRÒN (ENEMY)
+        function checkCollisionTankEnemy(tankRect, enemyCircle) {
+            // tìm điểm gần nhất trên hình chữ nhật đến tâm hình tròn
+            const tankLeft = tankRect.x - tankRect.width/2;
+            const tankRight = tankRect.x + tankRect.width/2;
+            const tankTop = tankRect.y - tankRect.height/2;
+            const tankBottom = tankRect.y + tankRect.height/2;
+            
+            const closestX = Math.max(tankLeft, Math.min(enemyCircle.x, tankRight));
+            const closestY = Math.max(tankTop, Math.min(enemyCircle.y, tankBottom));
+            const dx = closestX - enemyCircle.x;
+            const dy = closestY - enemyCircle.y;
+            const dist = Math.hypot(dx, dy);
+            return dist < enemyCircle.radius;
+        }
+        
+        // thêm hiệu ứng nổ (tia lửa cyber)
+        function addExplosion(x, y, maxRadius) {
+            explosions.push({
+                x: x,
+                y: y,
+                radius: maxRadius,
+                life: 12,
+                maxLife: 12
+            });
+        }
+        
+        // ------------------- VẼ ĐỒ HỌA CYBERPUNK -------------------
+        function drawGrid() {
+            ctx.save();
+            ctx.strokeStyle = "#0ff3";
+            ctx.lineWidth = 0.6;
+            // lưới dọc
+            for(let i=0; i<CW; i+=45) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, CH);
+                ctx.stroke();
+            }
+            for(let i=0; i<CH; i+=45) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(CW, i);
+                ctx.stroke();
+            }
+            // các đường neon chéo
+            ctx.beginPath();
+            ctx.strokeStyle = "#f0f2";
+            for(let i=0; i<8; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i*130, 0);
+                ctx.lineTo(CW, i*80);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(CW - i*110, 0);
+                ctx.lineTo(0, i*90);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+        
+        // vẽ background hiệu ứng ánh sáng động
+        function drawBackgroundGlow() {
+            const grad = ctx.createLinearGradient(0, 0, CW, CH);
+            grad.addColorStop(0, "#01000c");
+            grad.addColorStop(1, "#030a1a");
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, CW, CH);
+            // hiệu ứng scanning line
+            ctx.fillStyle = "#0ff1";
+            for(let i=0; i<CH; i+=8) {
+                ctx.fillRect(0, i + (Date.now()*0.003 % 8), CW, 1.5);
+            }
+        }
+        
+        // vẽ XE TĂNG CYBERPUNK (cực chất)
+        function drawTank() {
+            const tx = tank.x;
+            const ty = tank.y;
+            const w = TANK_WIDTH;
+            const h = TANK_HEIGHT;
+            
+            ctx.save();
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = "#0ff";
+            // thân chính
+            ctx.beginPath();
+            ctx.roundRect(tx - w/2, ty - h/2, w, h, 8);
+            ctx.fillStyle = "#1e2a5e";
+            ctx.fill();
+            ctx.strokeStyle = "#0ff";
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            
+            // viền neon
+            ctx.beginPath();
+            ctx.roundRect(tx - w/2 + 3, ty - h/2 + 3, w-6, h-6, 5);
+            ctx.strokeStyle = "#f0f";
+            ctx.stroke();
+            
+            // bánh xích (hình tròn hai bên)
+            ctx.fillStyle = "#2c3e66";
+            ctx.shadowBlur = 5;
+            for(let side of [-1,1]) {
+                ctx.beginPath();
+                ctx.arc(tx + side*18, ty + 12, 12, 0, Math.PI*2);
+                ctx.fillStyle = "#141f3c";
+                ctx.fill();
+                ctx.strokeStyle = "#0ff";
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(tx + side*18, ty - 8, 9, 0, Math.PI*2);
+                ctx.fillStyle = "#1a274d";
+                ctx.fill();
+                ctx.stroke();
+            }
+            
+            // nòng pháo (dài, sáng)
+            ctx.beginPath();
+            ctx.rect(tx - 6, ty - h/2 - 18, 12, 28);
+            ctx.fillStyle = "#8ae2ff";
+            ctx.fill();
+            ctx.fillStyle = "#0ff";
+            ctx.shadowBlur = 9;
+            ctx.fillRect(tx - 3, ty - h/2 - 30, 6, 15);
+            // họng súng neon
+            ctx.fillStyle = "#fff0a0";
+            ctx.fillRect(tx - 2, ty - h/2 - 34, 4, 8);
+            
+            // đèn LED trên thân tank
+            ctx.fillStyle = "#ff4da6";
+            ctx.shadowBlur = 8;
+            ctx.fillRect(tx - 12, ty - 10, 6, 6);
+            ctx.fillRect(tx + 6, ty - 10, 6, 6);
+            ctx.fillStyle = "#0ff";
+            ctx.fillRect(tx - 8, ty + 12, 5, 5);
+            ctx.fillRect(tx + 3, ty + 12, 5, 5);
+            
+            ctx.restore();
+            
+            // vẽ logo cyber nhỏ
+            ctx.font = "bold 12monospace";
+            ctx.fillStyle = "#0ffa";
+            ctx.shadowBlur = 0;
+            ctx.fillText("⚡", tx-5, ty-20);
+        }
+        
+        // VẼ KẺ ĐỊCH (DRONE độc)
+        function drawEnemy(e) {
+            ctx.save();
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = "#f0f";
+            const grad = ctx.createRadialGradient(e.x-3, e.y-3, 3, e.x, e.y, e.radius);
+            grad.addColorStop(0, "#ff3366");
+            grad.addColorStop(1, "#aa1144");
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+            ctx.strokeStyle = "#ff88cc";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            // mắt điện tử
+            ctx.beginPath();
+            ctx.arc(e.x - 4, e.y - 3, 3, 0, Math.PI*2);
+            ctx.fillStyle = "#fffde7";
+            ctx.fill();
+            ctx.fillStyle = "#ff0000";
+            ctx.beginPath();
+            ctx.arc(e.x - 5, e.y - 4, 1.2, 0, Math.PI*2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(e.x + 4, e.y - 3, 2.8, 0, Math.PI*2);
+            ctx.fillStyle = "#fff";
+            ctx.fill();
+            ctx.fillStyle = "#f44";
+            ctx.beginPath();
+            ctx.arc(e.x + 3, e.y - 4, 1, 0, Math.PI*2);
+            ctx.fill();
+            // vòng sáng
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, e.radius+2, 0, Math.PI*2);
+            ctx.strokeStyle = "#ff66cc";
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+            ctx.restore();
+        }
+        
+        // ĐẠN plasma
+        function drawBullet(b) {
+            ctx.save();
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = "#0f0";
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.radius-1, 0, Math.PI*2);
+            ctx.fillStyle = "#3eff9e";
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.radius-2, 0, Math.PI*2);
+            ctx.fillStyle = "#b3ffcf";
+            ctx.fill();
+            ctx.restore();
+        }
+        
+        // HIỆU ỨNG NỔ
+        function drawExplosions() {
+            for(let exp of explosions) {
+                let lifeFactor = exp.life / exp.maxLife;
+                let r = exp.radius * (1 - lifeFactor) + 5;
+                ctx.save();
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = "#ff3300";
+                ctx.beginPath();
+                ctx.arc(exp.x, exp.y, r, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(255, 80, 40, ${0.7 * lifeFactor})`;
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(exp.x-2, exp.y-2, r*0.6, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(255, 200, 50, ${0.8})`;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+        
+        // hiển thị game over + hướng dẫn reset
+        function drawGameOverlay() {
+            if(!gameActive) {
+                ctx.font = "bold 42px 'Orbitron', monospace";
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = "#ff0055";
+                ctx.shadowColor = "#ff44aa";
+                ctx.textAlign = "center";
+                ctx.fillText("💀 SYSTEM OVER 💀", CW/2, CH/2 - 40);
+                ctx.font = "20px monospace";
+                ctx.fillStyle = "#0ff";
+                ctx.fillText("🔁 NHẤN PHÍM [ R ] ĐỂ TÁI KHỞI 🔁", CW/2, CH/2 + 40);
+                ctx.font = "14px monospace";
+                ctx.fillStyle = "#ccffff";
+                ctx.fillText("> CYBER TANK đã bị tiêu diệt <", CW/2, CH/2 + 95);
+                ctx.textAlign = "left";
+            }
+        }
+        
+        // hiển thị thông số độ khó + chỉ số cyber
+        function drawDifficultyIndicator() {
+            let diffPercent = Math.min(100, Math.floor((38 - spawnDelay) / 18 * 100));
+            ctx.font = "12px monospace";
+            ctx.fillStyle = "#0ffb";
+            ctx.shadowBlur = 0;
+            ctx.fillText(`⚠️ CẢNH BÁO: MẬT ĐỘ DRONE +${Math.floor((38-spawnDelay)/1.5)}%`, CW-165, 32);
+            ctx.fillStyle = "#f0f";
+            ctx.fillText(`⚡ TỐC ĐỘ KẺ ĐỊCH: ${(2.2 + Math.min(3.5, Math.floor(score/280))).toFixed(1)}`, CW-175, 54);
+            // Hiển thị FPS ảo
+            ctx.fillStyle = "#8ff";
+            ctx.fillText(`🔫 SCORE: ${score}`, 15, 45);
+        }
+        
+        // CUSTOM ROUNDRECT
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.moveTo(x+r, y);
+                this.lineTo(x+w-r, y);
+                this.quadraticCurveTo(x+w, y, x+w, y+r);
+                this.lineTo(x+w, y+h-r);
+                this.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+                this.lineTo(x+r, y+h);
+                this.quadraticCurveTo(x, y+h, x, y+h-r);
+                this.lineTo(x, y+r);
+                this.quadraticCurveTo(x, y, x+r, y);
+                return this;
+            };
+        }
+        
+        // ------------------- RENDER TỔNG THỂ -------------------
+        function draw() {
+            // background chính
+            drawBackgroundGlow();
+            drawGrid();
+            
+            // vẽ các object
+            for(let e of enemies) drawEnemy(e);
+            for(let b of bullets) drawBullet(b);
+            drawTank();
+            drawExplosions();
+            drawGameOverlay();
+            drawDifficultyIndicator();
+            
+            // viền màn hình cyber
+            ctx.strokeStyle = "#0ff";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(10, 10, CW-20, CH-20);
+            ctx.strokeStyle = "#f66";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(8, 8, CW-16, CH-16);
+            
+            // hiệu ứng scanning bar
+            ctx.fillStyle = "#0ff1";
+            ctx.fillRect(0, (Date.now() * 0.2) % CH, CW, 2);
+        }
+        
+        // ------------- GAME LOOP -------------
+        let lastTimestamp = 0;
+        function gameLoop() {
+            updateGame();   // logic vật lý + va chạm + spawn
+            draw();         // render tất cả
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // ------------- SỰ KIỆN BÀN PHÍM & CHUỘT -------------
+        function handleKeyDown(e) {
+            let code = e.code;
+            if (keys.hasOwnProperty(code)) {
+                keys[code] = true;
+                e.preventDefault();
+            }
+            // Bắn Space
+            if (code === 'Space' && gameActive) {
+                shootBullet();
+                e.preventDefault();
+            }
+            // RESET phím R
+            if (code === 'KeyR') {
+                e.preventDefault();
+                resetGame();
+            }
+        }
+        
+        function handleKeyUp(e) {
+            let code = e.code;
+            if (keys.hasOwnProperty(code)) {
+                keys[code] = false;
+                e.preventDefault();
+            }
+        }
+        
+        function handleCanvasClick(e) {
+            if(!gameActive) return;
+            // bắn bằng click chuột
+            shootBullet();
+            // tạo hiệu ứng click phong cách
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left) * (CW / rect.width);
+            const mouseY = (e.clientY - rect.top) * (CH / rect.height);
+            addExplosion(mouseX, mouseY, 10);
+        }
+        
+        // chặn context menu chuột phải
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        canvas.addEventListener('click', handleCanvasClick);
+        
+        // khởi tạo game + reset để có trạng thái ban đầu
+        resetGame();
+        
+        // spawn mẫu vài enemy ban đầu để không quá trống (optional)
+        setTimeout(() => {
+            if(gameActive && enemies.length === 0) {
+                for(let i=0;i<2;i++) spawnEnemy();
+            }
+        }, 400);
+        
+        // start game loop
+        gameLoop();
+        
+        // hiển thị hướng dẫn console
+        console.log("%c⚡ CYBER TANK 2088 - BẮN DIỆT DRONE, HÃY SỐNG SÓT! ⚡", "color: #0ff; font-size: 16px");
+    })();
+</script>
+</body>
+</html>
